@@ -15,7 +15,6 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=for-the-badge)](LICENSE)
 [![Bash](https://img.shields.io/badge/Shell-Bash-purple?style=for-the-badge&logo=gnu-bash)](https://www.gnu.org/software/bash/)
-[![Python](https://img.shields.io/badge/Python-3.8+-blueviolet?style=for-the-badge&logo=python)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Termux-purple?style=for-the-badge&logo=linux)](https://github.com/mairecheco/onionroot)
 [![Version](https://img.shields.io/badge/Version-1.0.0-blueviolet?style=for-the-badge)](https://github.com/mairecheco/onionroot/releases)
 [![Stars](https://img.shields.io/github/stars/mairecheco/onionroot?style=for-the-badge&color=purple)](https://github.com/mairecheco/onionroot/stargazers)
