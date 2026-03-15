@@ -1,0 +1,27 @@
+# OnionRoot — GitHub Topics
+# Settings → About → Topics — paste these for maximum discoverability
+
+tor
+onion
+dark-web
+tor-hidden-services
+onion-crawler
+osint
+osint-tool
+cybersecurity
+security-research
+network-analysis
+privacy
+anonymity
+bash
+python
+linux
+kali-linux
+penetration-testing
+ethical-hacking
+information-security
+threat-intelligence
+web-crawler
+network-graph
+dark-web-research
+tor-network

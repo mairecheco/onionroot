@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# OnionRoot — Tor Hidden Services Research Toolkit
+# Copyright (c) 2026 MAIRECHE — MIT License
+# github.com/mairecheco/onionroot
+
+set -euo pipefail
+
+# ── Resolve install directory ─────────────────────────────────────────────────
+if [[ -z "${ONIONROOT_HOME:-}" ]]; then
+    ONIONROOT_HOME="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+fi
+export ONIONROOT_HOME
+
+# ── Load core ─────────────────────────────────────────────────────────────────
+source "$ONIONROOT_HOME/core/config.sh"
+source "$ONIONROOT_HOME/core/logger.sh"
+source "$ONIONROOT_HOME/core/utils.sh"
+
+# ── Bootstrap data dirs ───────────────────────────────────────────────────────
+mkdir -p "$OR_DATA_DIR" "$OR_CACHE_DIR"
+touch "$OR_LOG_FILE" 2>/dev/null || true
+
+# ── Usage / Help ──────────────────────────────────────────────────────────────
+usage() {
+    printf "${P}"
+    cat <<'ASCIIEOF'
+
+   ▄██████▄  ███▄▄▄▄    ▄█   ▄██████▄  ███▄▄▄▄
+  ███    ███ ███▀▀▀██▄ ███  ███    ███ ███▀▀▀██▄
+  ███    ███ ███   ███ ███▌ ███    ███ ███   ███
+  ███    ███ ███   ███ ███▌ ███    ███ ███   ███
+  ███    ███ ███   ███ ███▌ ███    ███ ███   ███
+  ███    ███ ███   ███ ███  ███    ███ ███   ███
+  ███    ███ ███   ███ ███  ███    ███ ███   ███
+   ▀██████▀   ▀█   █▀  █▀    ▀██████▀   ▀█   █▀
+
+ASCIIEOF
+    printf "${NC}"
+    printf "  ${P}──────────────────────────────────────────────────────${NC}\n"
+    printf "  ${LP}${BOLD}  Tor Hidden Services Research Toolkit${NC}  ${DIM}v%s${NC}\n" "$OR_VERSION"
+    printf "  ${DIM}  By ${W}MAIRECHE${DIM}  │  ${W}github.com/mairecheco/onionroot${NC}\n"
+
+    # Show current mode
+    if [[ "$OR_MODE" == "root" ]]; then
+        printf "  ${DIM}  Mode: ${G}${BOLD}ROOT${NC}${DIM}  — full capabilities${NC}\n"
+    else
+        printf "  ${DIM}  Mode: ${Y}${BOLD}ROOTLESS${NC}${DIM}  — limited scan features${NC}\n"
+    fi
+
+    printf "  ${P}──────────────────────────────────────────────────────${NC}\n\n"
+    printf "  ${LP}${BOLD}Usage:${NC}  ${W}onionroot${NC} ${C}<command>${NC} ${DIM}[options]${NC}\n\n"
+    printf "  ${LP}${BOLD}Commands:${NC}\n\n"
+    printf "  ${C}%-32s${NC} %s\n" "crawl"                       "Discover .onion services from seeds"
+    printf "  ${C}%-32s${NC} %s\n" "search <keyword>"            "Search local dataset"
+    printf "  ${C}%-32s${NC} %s\n" "recon <site.onion>"          "Gather intelligence on a service"
+    printf "  ${C}%-32s${NC} %s\n" "scan <site.onion>"           "Scan ports and services via Tor"
+    printf "  ${C}%-32s${NC} %s\n" "leakscan <site.onion>"       "Detect information leaks"
+    printf "  ${C}%-32s${NC} %s\n" "map <site.onion>"            "Map internal link tree"
+    printf "  ${C}%-32s${NC} %s\n" "dataset <build|stats|export>" "Manage local dataset"
+    printf "  ${C}%-32s${NC} %s\n" "graph [--export json|csv|gexf]" "Build network graph"
+    printf "\n  ${LP}${BOLD}Options:${NC}\n\n"
+    printf "  ${DIM}%-32s${NC} %s\n" "--root"                  "Force root mode (requires sudo/root)"
+    printf "  ${DIM}%-32s${NC} %s\n" "--rootless"              "Force rootless mode"
+    printf "  ${DIM}%-32s${NC} %s\n" "--proxy <host:port>"     "Override Tor proxy (default 127.0.0.1:9050)"
+    printf "  ${DIM}%-32s${NC} %s\n" "--depth <n>"             "Crawl/map depth (default: 2)"
+    printf "  ${DIM}%-32s${NC} %s\n" "--output <file>"         "Write output to file"
+    printf "  ${DIM}%-32s${NC} %s\n" "--no-color"              "Disable colored output"
+    printf "  ${DIM}%-32s${NC} %s\n" "--debug"                 "Enable debug logging"
+    printf "\n  ${LP}${BOLD}Examples:${NC}\n\n"
+    printf "  ${DIM}\$${NC}  onionroot crawl\n"
+    printf "  ${DIM}\$${NC}  onionroot recon example.onion\n"
+    printf "  ${DIM}\$${NC}  onionroot scan example.onion\n"
+    printf "  ${DIM}\$${NC}  sudo onionroot scan example.onion   ${DIM}# root mode — deeper scan${NC}\n"
+    printf "  ${DIM}\$${NC}  onionroot graph --export gexf\n\n"
+    printf "  ${P}──────────────────────────────────────────────────────${NC}\n"
+    printf "  ${DIM}  For research and educational purposes only.${NC}\n"
+    printf "  ${P}──────────────────────────────────────────────────────${NC}\n\n"
+}
+
+# ── Parse global flags first ───────────────────────────────────────────────────
+CMD="${1:-}"
+shift || true
+
+while [[ "${1:-}" == --* ]]; do
+    case "${1:-}" in
+        --root)      OR_MODE="root";       export OR_MODE; shift ;;
+        --rootless)  OR_MODE="rootless";   export OR_MODE; shift ;;
+        --proxy)     OR_TOR_PROXY="${2:-$OR_TOR_PROXY}"; shift 2 || true ;;
+        --depth)     OR_DEPTH="${2:-$OR_DEPTH}"; shift 2 || true ;;
+        --output)    OR_OUTPUT_FILE="${2:-}"; shift 2 || true ;;
+        --no-color)  _disable_colors; shift ;;
+        --debug)     OR_DEBUG=1; shift ;;
+        *)           shift ;;
+    esac
+done
+
+log_info "Command: $CMD | Mode: $OR_MODE | User: $(whoami)"
+
+# ── Route to module ────────────────────────────────────────────────────────────
+case "$CMD" in
+    crawl)
+        check_tor
+        source "$ONIONROOT_HOME/modules/crawler.sh"
+        mod_crawl "$@"
+        ;;
+    search)
+        [[ -z "${1:-}" ]] && { log_err "Usage: onionroot search <keyword>"; exit 1; }
+        source "$ONIONROOT_HOME/modules/search.sh"
+        mod_search "$@"
+        ;;
+    recon)
+        [[ -z "${1:-}" ]] && { log_err "Usage: onionroot recon <site.onion>"; exit 1; }
+        check_tor
+        source "$ONIONROOT_HOME/modules/recon.sh"
+        mod_recon "$1"
+        ;;
+    scan)
+        [[ -z "${1:-}" ]] && { log_err "Usage: onionroot scan <site.onion>"; exit 1; }
+        check_tor
+        source "$ONIONROOT_HOME/modules/scanner.sh"
+        mod_scan "$1"
+        ;;
+    leakscan)
+        [[ -z "${1:-}" ]] && { log_err "Usage: onionroot leakscan <site.onion>"; exit 1; }
+        check_tor
+        source "$ONIONROOT_HOME/modules/leakscan.sh"
+        mod_leakscan "$1"
+        ;;
+    map)
+        [[ -z "${1:-}" ]] && { log_err "Usage: onionroot map <site.onion>"; exit 1; }
+        check_tor
+        source "$ONIONROOT_HOME/modules/map.sh"
+        mod_map "$1"
+        ;;
+    dataset)
+        source "$ONIONROOT_HOME/modules/dataset.sh"
+        mod_dataset "${1:-build}"
+        ;;
+    graph)
+        check_python
+        python3 "$ONIONROOT_HOME/modules/graph.py" "$@"
+        ;;
+    version|-v|--version)
+        printf "onionroot v%s (%s mode)\n" "$OR_VERSION" "$OR_MODE"
+        ;;
+    help|-h|--help|"")
+        usage
+        ;;
+    *)
+        log_err "Unknown command: $CMD"
+        printf "  Run ${C}onionroot help${NC} for usage.\n\n"
+        exit 1
+        ;;
+esac
